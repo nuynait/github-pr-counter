@@ -32,6 +32,22 @@ actor GitHubService {
         return try await searchIssues(query: query)
     }
 
+    /// Check if a PR was merged, closed, or still open.
+    func fetchPRState(repo: String, number: Int) async -> String {
+        let request = makeRequest(path: "/repos/\(repo)/pulls/\(number)")
+        do {
+            let (data, response) = try await session.data(for: request)
+            try validateResponse(response)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let json = try decoder.decode(PRStateResponse.self, from: data)
+            if json.mergedAt != nil { return "merged" }
+            return json.state
+        } catch {
+            return "unknown"
+        }
+    }
+
     private func searchIssues(query: String) async throws -> [PullRequest] {
         let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
         let request = makeRequest(path: "/search/issues?q=\(encodedQuery)&per_page=100&sort=updated&order=desc")

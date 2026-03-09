@@ -1,40 +1,82 @@
 import Foundation
 import UserNotifications
 
+enum PREvent {
+    // My PRs
+    case myPRCreated(PullRequest)
+    case myPRMerged(PullRequest)
+    case myPRClosed(PullRequest)
+
+    // Review requests
+    case reviewRequestAdded(PullRequest)
+    case reviewRequestRemoved(PullRequest)
+    case reviewPRMerged(PullRequest)
+    case reviewPRClosed(PullRequest)
+
+    var title: String {
+        switch self {
+        case .myPRCreated: return "PR Created"
+        case .myPRMerged: return "PR Merged"
+        case .myPRClosed: return "PR Closed"
+        case .reviewRequestAdded: return "Review Requested"
+        case .reviewRequestRemoved: return "Review Request Removed"
+        case .reviewPRMerged: return "Reviewed PR Merged"
+        case .reviewPRClosed: return "Reviewed PR Closed"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .myPRCreated(let pr):
+            return "You created a new pull request"
+        case .myPRMerged(let pr):
+            return "Your pull request has been merged"
+        case .myPRClosed(let pr):
+            return "Your pull request has been closed"
+        case .reviewRequestAdded(let pr):
+            return "\(pr.user.login) requested your review"
+        case .reviewRequestRemoved(let pr):
+            return "You have been removed from reviewers"
+        case .reviewPRMerged(let pr):
+            return "\(pr.user.login)'s pull request has been merged"
+        case .reviewPRClosed(let pr):
+            return "\(pr.user.login)'s pull request has been closed"
+        }
+    }
+
+    var pr: PullRequest {
+        switch self {
+        case .myPRCreated(let pr),
+             .myPRMerged(let pr),
+             .myPRClosed(let pr),
+             .reviewRequestAdded(let pr),
+             .reviewRequestRemoved(let pr),
+             .reviewPRMerged(let pr),
+             .reviewPRClosed(let pr):
+            return pr
+        }
+    }
+}
+
 enum NotificationService {
     static func requestPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
-    static func sendNewPRNotification(prs: [PullRequest], isReviewRequest: Bool) {
-        guard !prs.isEmpty else { return }
+    static func send(events: [PREvent]) {
+        for event in events {
+            let content = UNMutableNotificationContent()
+            content.title = "\(event.title): \(event.pr.title)"
+            content.subtitle = event.subtitle
+            content.body = "\(event.pr.repoFullName) #\(event.pr.number)"
+            content.sound = .default
 
-        let content = UNMutableNotificationContent()
-        content.sound = .default
-
-        if prs.count == 1, let pr = prs.first {
-            if isReviewRequest {
-                content.title = "New Review Request"
-                content.body = "\(pr.user.login) requested your review on #\(pr.number): \(pr.title)"
-            } else {
-                content.title = "New Pull Request"
-                content.body = "#\(pr.number): \(pr.title) in \(pr.repoFullName)"
-            }
-        } else {
-            if isReviewRequest {
-                content.title = "\(prs.count) New Review Requests"
-                content.body = prs.map { "#\($0.number) \($0.title)" }.joined(separator: ", ")
-            } else {
-                content.title = "\(prs.count) New Pull Requests"
-                content.body = prs.map { "#\($0.number) \($0.title)" }.joined(separator: ", ")
-            }
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil
+            )
+            UNUserNotificationCenter.current().add(request)
         }
-
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
     }
 }

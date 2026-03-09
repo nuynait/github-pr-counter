@@ -81,6 +81,21 @@ struct SettingsView: View {
             .padding(10)
             .background(.fill.quinary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Toggle(isOn: $prVM.showNewIndicator) {
+                HStack {
+                    Image(systemName: "circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+
+                    Text("Show \"new\" indicator on PRs")
+                        .font(.subheadline)
+                }
+            }
+            .toggleStyle(.switch)
+            .padding(10)
+            .background(.fill.quinary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 

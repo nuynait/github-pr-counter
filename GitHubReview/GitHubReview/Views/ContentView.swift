@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @EnvironmentObject var prVM: PRViewModel
     @State private var showSettings = false
+    @State private var selectedTab = 0
 
     var body: some View {
         Group {
@@ -15,20 +16,30 @@ struct ContentView: View {
         }
     }
 
+    private var myPRsTabTitle: String {
+        let count = prVM.myPRUnreadCount
+        return count > 0 ? "My PRs (\(count))" : "My PRs"
+    }
+
+    private var reviewTabTitle: String {
+        let count = prVM.reviewUnreadCount
+        return count > 0 ? "Review Requests (\(count))" : "Review Requests"
+    }
+
     private var mainView: some View {
         VStack(spacing: 0) {
-            TabView {
+            TabView(selection: $selectedTab) {
                 MyPRsView()
                     .tabItem {
-                        Label("My PRs", systemImage: "arrow.triangle.pull")
+                        Label(myPRsTabTitle, systemImage: "arrow.triangle.pull")
                     }
-                    .badge(prVM.myPRCount)
+                    .tag(0)
 
                 ReviewRequestsView()
                     .tabItem {
-                        Label("Review Requests", systemImage: "eye")
+                        Label(reviewTabTitle, systemImage: "eye")
                     }
-                    .badge(prVM.reviewRequestCount)
+                    .tag(1)
             }
 
             statusBar
@@ -39,6 +50,17 @@ struct ContentView: View {
                     ProgressView()
                         .controlSize(.small)
                 }
+
+                Button {
+                    if selectedTab == 0 {
+                        prVM.markAllMyPRsAsRead()
+                    } else {
+                        prVM.markAllReviewsAsRead()
+                    }
+                } label: {
+                    Image(systemName: "eye")
+                }
+                .help("Mark all as read")
 
                 Button {
                     prVM.refresh()

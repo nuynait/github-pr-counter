@@ -2,14 +2,33 @@ import SwiftUI
 
 struct PRRowView: View {
     let pr: PullRequest
+    @EnvironmentObject var prVM: PRViewModel
 
     var body: some View {
-        Button {
-            if let url = pr.browserURL {
-                NSWorkspace.shared.open(url)
+        HStack(alignment: .center, spacing: 6) {
+            // Unread indicator
+            if prVM.isUnread(pr.id) {
+                Button {
+                    withAnimation { prVM.markAsRead(pr.id) }
+                } label: {
+                    Circle()
+                        .fill(.blue)
+                        .frame(width: 8, height: 8)
+                }
+                .buttonStyle(.plain)
+                .help("Mark as read")
+            } else {
+                Spacer()
+                    .frame(width: 8)
             }
-        } label: {
-            HStack(alignment: .top, spacing: 10) {
+
+            // Main PR content
+            Button {
+                prVM.markAsRead(pr.id)
+                if let url = pr.browserURL {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(pr.title)
@@ -40,16 +59,23 @@ struct PRRowView: View {
                     }
                     .foregroundStyle(.secondary)
                 }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.right.square")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
-            .padding(.vertical, 2)
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            // Star button
+            Button {
+                withAnimation { prVM.toggleStar(pr.id) }
+            } label: {
+                Image(systemName: prVM.isStarred(pr.id) ? "star.fill" : "star")
+                    .font(.caption)
+                    .foregroundStyle(prVM.isStarred(pr.id) ? Color.yellow : Color.gray.opacity(0.3))
+            }
+            .buttonStyle(.plain)
+            .help(prVM.isStarred(pr.id) ? "Unstar" : "Star")
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 2)
     }
 }

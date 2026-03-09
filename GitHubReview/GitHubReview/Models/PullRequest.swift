@@ -49,3 +49,8 @@ struct PRUser: Codable, Identifiable, Equatable {
 struct PRLinks: Codable, Equatable {
     let htmlUrl: String?
 }
+
+struct PRStateResponse: Codable {
+    let state: String
+    let mergedAt: String?
+}
