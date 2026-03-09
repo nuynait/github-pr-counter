@@ -96,7 +96,11 @@ class PRViewModel: ObservableObject {
     }
 
     func markAsRead(_ prId: Int) {
-        prMetadata[prId]?.isUnread = false
+        if prMetadata[prId] != nil {
+            prMetadata[prId]?.isUnread = false
+        } else {
+            prMetadata[prId] = PRMetadata(prId: prId, isUnread: false)
+        }
     }
 
     func isUnread(_ prId: Int) -> Bool {
