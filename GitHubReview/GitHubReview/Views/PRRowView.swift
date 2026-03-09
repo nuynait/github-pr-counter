@@ -45,6 +45,16 @@ struct PRRowView: View {
                                 .clipShape(Capsule())
                                 .foregroundStyle(.secondary)
                         }
+
+                        if let state = prVM.resolvedState(pr.id) {
+                            Text(state == "merged" ? "Merged" : "Closed")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(state == "merged" ? Color.purple.opacity(0.2) : Color.red.opacity(0.2))
+                                .clipShape(Capsule())
+                                .foregroundStyle(state == "merged" ? .purple : .red)
+                        }
                     }
 
                     HStack(spacing: 4) {
@@ -77,5 +87,6 @@ struct PRRowView: View {
             .help(prVM.isStarred(pr.id) ? "Unstar" : "Star")
         }
         .padding(.vertical, 2)
+        .padding(.trailing, 8)
     }
 }

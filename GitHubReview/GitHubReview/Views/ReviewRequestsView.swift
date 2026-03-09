@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ReviewRequestsView: View {
     @EnvironmentObject var prVM: PRViewModel
-    @State private var expandedRepos: Set<String> = []
 
     var body: some View {
         Group {
@@ -24,32 +23,14 @@ struct ReviewRequestsView: View {
                     }
                 }
                 .listStyle(.plain)
-                .onAppear { expandAll() }
-                .onChange(of: prVM.reviewGroups) { _, groups in
-                    for group in groups where !expandedRepos.contains(group.id) {
-                        expandedRepos.insert(group.id)
-                    }
-                }
             }
         }
     }
 
-    private func binding(for id: String) -> Binding<Bool> {
+    private func binding(for repoName: String) -> Binding<Bool> {
         Binding(
-            get: { expandedRepos.contains(id) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedRepos.insert(id)
-                } else {
-                    expandedRepos.remove(id)
-                }
-            }
+            get: { prVM.isRepoExpanded(repoName, tab: .reviews) },
+            set: { prVM.setRepoExpanded(repoName, tab: .reviews, expanded: $0) }
         )
-    }
-
-    private func expandAll() {
-        for group in prVM.reviewGroups {
-            expandedRepos.insert(group.id)
-        }
     }
 }

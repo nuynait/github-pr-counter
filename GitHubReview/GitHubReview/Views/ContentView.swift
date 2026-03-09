@@ -26,6 +26,11 @@ struct ContentView: View {
         return count > 0 ? "Review Requests (\(count))" : "Review Requests"
     }
 
+    private var starredTabTitle: String {
+        let count = prVM.starredCount
+        return count > 0 ? "Starred (\(count))" : "Starred"
+    }
+
     private var mainView: some View {
         VStack(spacing: 0) {
             TabView(selection: $selectedTab) {
@@ -40,6 +45,14 @@ struct ContentView: View {
                         Label(reviewTabTitle, systemImage: "eye")
                     }
                     .tag(1)
+
+                if prVM.starredCount > 0 {
+                    StarredPRsView()
+                        .tabItem {
+                            Label(starredTabTitle, systemImage: "star.fill")
+                        }
+                        .tag(2)
+                }
             }
 
             statusBar
@@ -51,16 +64,18 @@ struct ContentView: View {
                         .controlSize(.small)
                 }
 
-                Button {
-                    if selectedTab == 0 {
-                        prVM.markAllMyPRsAsRead()
-                    } else {
-                        prVM.markAllReviewsAsRead()
+                if selectedTab == 0 || selectedTab == 1 {
+                    Button {
+                        if selectedTab == 0 {
+                            prVM.markAllMyPRsAsRead()
+                        } else {
+                            prVM.markAllReviewsAsRead()
+                        }
+                    } label: {
+                        Image(systemName: "eye")
                     }
-                } label: {
-                    Image(systemName: "eye")
+                    .help("Mark all as read")
                 }
-                .help("Mark all as read")
 
                 Button {
                     prVM.refresh()
@@ -95,6 +110,11 @@ struct ContentView: View {
         .onChange(of: authVM.currentUser) { _, newUser in
             if let token = authVM.token, let user = newUser {
                 prVM.configure(token: token, username: user.login)
+            }
+        }
+        .onChange(of: prVM.starredCount) { _, count in
+            if count == 0 && selectedTab == 2 {
+                selectedTab = 0
             }
         }
         .sheet(isPresented: $showSettings) {

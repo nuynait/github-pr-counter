@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MyPRsView: View {
     @EnvironmentObject var prVM: PRViewModel
-    @State private var expandedRepos: Set<String> = []
 
     var body: some View {
         Group {
@@ -24,32 +23,14 @@ struct MyPRsView: View {
                     }
                 }
                 .listStyle(.plain)
-                .onAppear { expandAll() }
-                .onChange(of: prVM.myPRGroups) { _, groups in
-                    for group in groups where !expandedRepos.contains(group.id) {
-                        expandedRepos.insert(group.id)
-                    }
-                }
             }
         }
     }
 
-    private func binding(for id: String) -> Binding<Bool> {
+    private func binding(for repoName: String) -> Binding<Bool> {
         Binding(
-            get: { expandedRepos.contains(id) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedRepos.insert(id)
-                } else {
-                    expandedRepos.remove(id)
-                }
-            }
+            get: { prVM.isRepoExpanded(repoName, tab: .myPRs) },
+            set: { prVM.setRepoExpanded(repoName, tab: .myPRs, expanded: $0) }
         )
-    }
-
-    private func expandAll() {
-        for group in prVM.myPRGroups {
-            expandedRepos.insert(group.id)
-        }
     }
 }

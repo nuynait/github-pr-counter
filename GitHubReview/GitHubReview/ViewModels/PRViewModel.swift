@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 
+enum RepoTab {
+    case myPRs, reviews, starred
+}
+
 struct PRGroup: Identifiable, Equatable {
     let id: String // repo full name
     let repoName: String
@@ -13,6 +17,10 @@ class PRViewModel: ObservableObject {
     @Published var reviewRequests: [PullRequest] = []
     @Published var myPRGroups: [PRGroup] = []
     @Published var reviewGroups: [PRGroup] = []
+    @Published var starredPRs: [PullRequest] = []
+    @Published var starredAllGroups: [PRGroup] = []
+    @Published var starredMyPRGroups: [PRGroup] = []
+    @Published var starredReviewGroups: [PRGroup] = []
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdated: Date?
@@ -28,6 +36,10 @@ class PRViewModel: ObservableObject {
 
     private var allMyPRs: [PullRequest] = []
     private var allReviewRequests: [PullRequest] = []
+    /// Persisted starred PR data, kept even when PRs leave the active lists.
+    private var storedStarredPRs: [Int: PullRequest] = [:] {
+        didSet { PRMetadataStore.saveStarredPRs(storedStarredPRs) }
+    }
     private var service: GitHubService?
     private var username: String?
     private var pollTask: Task<Void, Never>?
@@ -42,6 +54,10 @@ class PRViewModel: ObservableObject {
     /// PR IDs known from last session, used to detect new PRs on first load.
     private var lastSessionKnownIds: Set<Int>
 
+    @Published var repoMetadata: [String: RepoMetadata] = [:] {
+        didSet { RepoMetadataStore.save(repoMetadata) }
+    }
+
     @Published var showNewIndicator: Bool {
         didSet { UserDefaults.standard.set(showNewIndicator, forKey: Self.showNewIndicatorKey) }
     }
@@ -54,6 +70,7 @@ class PRViewModel: ObservableObject {
     var reviewRequestCount: Int { reviewRequests.count }
     var myPRUnreadCount: Int { myPRs.filter { isUnread($0.id) }.count }
     var reviewUnreadCount: Int { reviewRequests.filter { isUnread($0.id) }.count }
+    var starredCount: Int { starredPRs.count }
 
     /// All visible (non-archived) repos seen across both tabs, in user-defined order.
     var orderedVisibleRepos: [String] {
@@ -72,6 +89,8 @@ class PRViewModel: ObservableObject {
         self.repoOrder = UserDefaults.standard.stringArray(forKey: Self.repoOrderKey) ?? []
         self.showNewIndicator = UserDefaults.standard.object(forKey: Self.showNewIndicatorKey) as? Bool ?? true
         self.prMetadata = PRMetadataStore.load()
+        self.repoMetadata = RepoMetadataStore.load()
+        self.storedStarredPRs = PRMetadataStore.loadStarredPRs()
         self.lastSessionKnownIds = PRMetadataStore.loadKnownPRIds()
     }
 
@@ -84,16 +103,31 @@ class PRViewModel: ObservableObject {
     }
 
     func toggleStar(_ prId: Int) {
+        let wasStarred = prMetadata[prId]?.isStarred == true
         if prMetadata[prId] != nil {
             prMetadata[prId]!.isStarred.toggle()
         } else {
             prMetadata[prId] = PRMetadata(prId: prId, isStarred: true)
+        }
+
+        if wasStarred {
+            // Unstarring: remove from stored starred PRs
+            storedStarredPRs.removeValue(forKey: prId)
+        } else {
+            // Starring: store the PR data
+            if let pr = allMyPRs.first(where: { $0.id == prId }) ?? allReviewRequests.first(where: { $0.id == prId }) {
+                storedStarredPRs[prId] = pr
+            }
         }
         applyFilters()
     }
 
     func isStarred(_ prId: Int) -> Bool {
         prMetadata[prId]?.isStarred == true
+    }
+
+    func resolvedState(_ prId: Int) -> String? {
+        prMetadata[prId]?.resolvedState
     }
 
     func markAllMyPRsAsRead() {
@@ -105,6 +139,29 @@ class PRViewModel: ObservableObject {
     func markAllReviewsAsRead() {
         for pr in reviewRequests {
             prMetadata[pr.id]?.isUnread = false
+        }
+    }
+
+    func isRepoExpanded(_ repoName: String, tab: RepoTab) -> Bool {
+        guard let meta = repoMetadata[repoName] else { return true }
+        switch tab {
+        case .myPRs: return meta.isExpandedMyPRs
+        case .reviews: return meta.isExpandedReviews
+        case .starred: return meta.isExpandedStarred
+        }
+    }
+
+    func setRepoExpanded(_ repoName: String, tab: RepoTab, expanded: Bool) {
+        if repoMetadata[repoName] == nil {
+            repoMetadata[repoName] = RepoMetadata(repoName: repoName)
+        }
+        switch tab {
+        case .myPRs:
+            repoMetadata[repoName]?.isExpandedMyPRs = expanded
+        case .reviews:
+            repoMetadata[repoName]?.isExpandedReviews = expanded
+        case .starred:
+            repoMetadata[repoName]?.isExpandedStarred = expanded
         }
     }
 
@@ -179,7 +236,20 @@ class PRViewModel: ObservableObject {
                 let filtered = events.filter { !archivedRepos.contains($0.pr.repoFullName) }
                 NotificationService.send(events: filtered)
 
-                // Mark newly added PRs as unread
+                // Update resolvedState from events
+                for event in events {
+                    let prId = event.pr.id
+                    switch event {
+                    case .myPRMerged, .reviewPRMerged:
+                        prMetadata[prId]?.resolvedState = "merged"
+                    case .myPRClosed, .reviewPRClosed:
+                        prMetadata[prId]?.resolvedState = "closed"
+                    default:
+                        break
+                    }
+                }
+
+                // Mark newly added PRs as unread, clear resolvedState for returning PRs
                 let oldAllIds = Set(previousMyPRs.keys).union(Set(previousReviews.keys))
                 let addedIds = currentAllIds.subtracting(oldAllIds)
                 for id in addedIds {
@@ -187,6 +257,7 @@ class PRViewModel: ObservableObject {
                         prMetadata[id] = PRMetadata(prId: id, isUnread: true)
                     } else {
                         prMetadata[id]?.isUnread = true
+                        prMetadata[id]?.resolvedState = nil
                     }
                 }
             } else {
@@ -201,9 +272,29 @@ class PRViewModel: ObservableObject {
                 }
             }
 
-            // Clean up metadata for PRs no longer in any list
+            // Clean up metadata for PRs no longer in any list (keep starred)
             for id in prMetadata.keys where !currentAllIds.contains(id) {
-                prMetadata.removeValue(forKey: id)
+                if prMetadata[id]?.isStarred != true {
+                    prMetadata.removeValue(forKey: id)
+                }
+            }
+
+            // Update stored starred PRs with latest data when still in lists,
+            // and resolve state for starred PRs that left the lists
+            for id in storedStarredPRs.keys {
+                if let pr = myPRs.first(where: { $0.id == id }) ?? reviews.first(where: { $0.id == id }) {
+                    storedStarredPRs[id] = pr
+                    prMetadata[id]?.resolvedState = nil
+                } else if prMetadata[id]?.resolvedState == nil {
+                    // Starred PR left the list but we don't know why yet — check state
+                    let pr = storedStarredPRs[id]!
+                    let state = await service.fetchPRState(repo: pr.repoFullName, number: pr.number)
+                    if state == "merged" {
+                        prMetadata[id]?.resolvedState = "merged"
+                    } else if state == "closed" {
+                        prMetadata[id]?.resolvedState = "closed"
+                    }
+                }
             }
 
             // Persist known IDs for next session
@@ -293,17 +384,32 @@ class PRViewModel: ObservableObject {
         self.reviewRequests = filteredReviews
         self.myPRGroups = groupByRepo(filteredMyPRs)
         self.reviewGroups = groupByRepo(filteredReviews)
+
+        // Build starred PR lists
+        let allStarred = Array(storedStarredPRs.values).sorted { $0.updatedAt > $1.updatedAt }
+        let myPRIds = Set(allMyPRs.map(\.id))
+        let reviewIds = Set(allReviewRequests.map(\.id))
+
+        self.starredPRs = allStarred
+        self.starredAllGroups = groupByRepo(allStarred, starSort: false)
+        self.starredMyPRGroups = groupByRepo(allStarred.filter { myPRIds.contains($0.id) }, starSort: false)
+        self.starredReviewGroups = groupByRepo(allStarred.filter { reviewIds.contains($0.id) }, starSort: false)
     }
 
-    private func groupByRepo(_ prs: [PullRequest]) -> [PRGroup] {
+    private func groupByRepo(_ prs: [PullRequest], starSort: Bool = true) -> [PRGroup] {
         let grouped = Dictionary(grouping: prs) { $0.repoFullName }
         let groups = grouped.map { key, value in
-            // Starred PRs first within each group
-            let sorted = value.sorted { a, b in
-                let aStarred = isStarred(a.id)
-                let bStarred = isStarred(b.id)
-                if aStarred != bStarred { return aStarred }
-                return a.updatedAt > b.updatedAt
+            let sorted: [PullRequest]
+            if starSort {
+                // Starred PRs first within each group
+                sorted = value.sorted { a, b in
+                    let aStarred = isStarred(a.id)
+                    let bStarred = isStarred(b.id)
+                    if aStarred != bStarred { return aStarred }
+                    return a.updatedAt > b.updatedAt
+                }
+            } else {
+                sorted = value.sorted { $0.updatedAt > $1.updatedAt }
             }
             return PRGroup(id: key, repoName: key, prs: sorted)
         }
