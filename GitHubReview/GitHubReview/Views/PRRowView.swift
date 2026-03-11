@@ -4,6 +4,22 @@ struct PRRowView: View {
     let pr: PullRequest
     @EnvironmentObject var prVM: PRViewModel
 
+    private var hasAssignees: Bool {
+        !(pr.assignees ?? []).isEmpty
+    }
+
+    private var hasReviewers: Bool {
+        !(prVM.prReviewers[pr.id] ?? []).isEmpty
+    }
+
+    private var assigneeNames: String {
+        (pr.assignees ?? []).map(\.login).joined(separator: ", ")
+    }
+
+    private var reviewerNames: String {
+        (prVM.prReviewers[pr.id] ?? []).joined(separator: ", ")
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 6) {
             // Unread indicator
@@ -78,6 +94,29 @@ struct PRRowView: View {
                             .font(.caption)
                     }
                     .foregroundStyle(.secondary)
+
+                    if hasAssignees || hasReviewers {
+                        HStack(spacing: 4) {
+                            if hasAssignees {
+                                Image(systemName: "person.fill")
+                                    .font(.caption2)
+                                Text(assigneeNames)
+                                    .font(.caption)
+                            }
+                            if hasAssignees && hasReviewers {
+                                Text("·")
+                                    .font(.caption)
+                            }
+                            if hasReviewers {
+                                Image(systemName: "eye.fill")
+                                    .font(.caption2)
+                                Text(reviewerNames)
+                                    .font(.caption)
+                            }
+                        }
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                    }
                 }
                 .contentShape(Rectangle())
             }

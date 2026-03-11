@@ -22,6 +22,7 @@ class PRViewModel: ObservableObject {
     @Published var starredMyPRGroups: [PRGroup] = []
     @Published var starredReviewGroups: [PRGroup] = []
     @Published var reviewStatuses: [Int: PRReviewStatus] = [:]
+    @Published var prReviewers: [Int: [String]] = [:]
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdated: Date?
@@ -332,25 +333,30 @@ class PRViewModel: ObservableObject {
     }
 
     private func fetchReviewStatuses(prs: [PullRequest], service: GitHubService) async {
-        await withTaskGroup(of: (Int, PRReviewStatus?).self) { group in
+        await withTaskGroup(of: (Int, PRReviewStatus?, [String]).self) { group in
             for pr in prs {
                 group.addTask {
-                    let status = await self.computeReviewStatus(pr: pr, service: service)
-                    return (pr.id, status)
+                    let (status, reviewers) = await self.computeReviewStatus(pr: pr, service: service)
+                    return (pr.id, status, reviewers)
                 }
             }
 
             var statuses: [Int: PRReviewStatus] = [:]
-            for await (id, status) in group {
+            var reviewers: [Int: [String]] = [:]
+            for await (id, status, names) in group {
                 if let status {
                     statuses[id] = status
                 }
+                if !names.isEmpty {
+                    reviewers[id] = names
+                }
             }
             self.reviewStatuses = statuses
+            self.prReviewers = reviewers
         }
     }
 
-    private func computeReviewStatus(pr: PullRequest, service: GitHubService) async -> PRReviewStatus? {
+    private func computeReviewStatus(pr: PullRequest, service: GitHubService) async -> (PRReviewStatus?, [String]) {
         async let reviewsResult = service.fetchReviews(repo: pr.repoFullName, number: pr.number)
         async let detailResult = service.fetchPRDetail(repo: pr.repoFullName, number: pr.number)
 
@@ -359,6 +365,10 @@ class PRViewModel: ObservableObject {
 
         // Reviewers who have been (re-)requested and haven't submitted a new review
         let pendingReviewerLogins = Set(detail?.requestedReviewers.map(\.login) ?? [])
+
+        // All reviewer logins: pending + those who already reviewed
+        let reviewedLogins = Set(reviews.map(\.user.login))
+        let allReviewerLogins = Array(pendingReviewerLogins.union(reviewedLogins).subtracting([pr.user.login])).sorted()
 
         // Group reviews by reviewer, keep only APPROVED or CHANGES_REQUESTED
         var latestByReviewer: [String: PRReview] = [:]
@@ -382,11 +392,11 @@ class PRViewModel: ObservableObject {
         let hasApproved = effectiveReviews.values.contains { $0.state == "APPROVED" }
 
         if hasChangesRequested {
-            return .changesRequested
+            return (.changesRequested, allReviewerLogins)
         } else if hasApproved {
-            return .approved
+            return (.approved, allReviewerLogins)
         }
-        return nil
+        return (nil, allReviewerLogins)
     }
 
     private func detectEvents(

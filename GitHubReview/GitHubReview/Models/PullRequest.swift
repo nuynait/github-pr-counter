@@ -15,6 +15,7 @@ struct PullRequest: Codable, Identifiable, Equatable {
     let createdAt: Date
     let updatedAt: Date
     let user: PRUser
+    let assignees: [PRUser]?
     let pullRequest: PRLinks?
     let repositoryUrl: String?
 
