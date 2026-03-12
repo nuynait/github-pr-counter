@@ -369,8 +369,12 @@ class PRViewModel: ObservableObject {
                     reviewers[id] = names
                 }
             }
-            self.reviewStatuses = statuses
-            self.prReviewers = reviewers
+            if self.reviewStatuses != statuses {
+                self.reviewStatuses = statuses
+            }
+            if self.prReviewers != reviewers {
+                self.prReviewers = reviewers
+            }
         }
     }
 

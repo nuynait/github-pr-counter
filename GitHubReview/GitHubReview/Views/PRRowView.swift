@@ -30,12 +30,14 @@ struct PRRowView: View {
                     Circle()
                         .fill(.blue)
                         .frame(width: 8, height: 8)
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Mark as read")
             } else {
                 Spacer()
-                    .frame(width: 8)
+                    .frame(width: 16)
             }
 
             // Main PR content
