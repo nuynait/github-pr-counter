@@ -64,15 +64,26 @@ class PRViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(showNewIndicator, forKey: Self.showNewIndicatorKey) }
     }
 
+    @Published var excludeDraftsFromMenuBar: Bool {
+        didSet { UserDefaults.standard.set(excludeDraftsFromMenuBar, forKey: Self.excludeDraftsKey) }
+    }
+
     private static let archivedReposKey = "archivedRepos"
     private static let repoOrderKey = "repoOrder"
     private static let showNewIndicatorKey = "showNewIndicator"
+    private static let excludeDraftsKey = "excludeDraftsFromMenuBar"
 
     var myPRCount: Int { myPRs.count }
     var reviewRequestCount: Int { reviewRequests.count }
     var myPRUnreadCount: Int { myPRs.filter { isUnread($0.id) }.count }
     var reviewUnreadCount: Int { reviewRequests.filter { isUnread($0.id) }.count }
     var starredCount: Int { starredPRs.count }
+    var menuBarMyPRCount: Int {
+        excludeDraftsFromMenuBar ? myPRs.filter { !$0.isDraft }.count : myPRs.count
+    }
+    var menuBarReviewCount: Int {
+        excludeDraftsFromMenuBar ? reviewRequests.filter { !$0.isDraft }.count : reviewRequests.count
+    }
 
     /// All visible (non-archived) repos seen across both tabs, in user-defined order.
     var orderedVisibleRepos: [String] {
@@ -90,6 +101,7 @@ class PRViewModel: ObservableObject {
         self.archivedRepos = Set(savedArchived)
         self.repoOrder = UserDefaults.standard.stringArray(forKey: Self.repoOrderKey) ?? []
         self.showNewIndicator = UserDefaults.standard.object(forKey: Self.showNewIndicatorKey) as? Bool ?? true
+        self.excludeDraftsFromMenuBar = UserDefaults.standard.bool(forKey: Self.excludeDraftsKey)
         self.prMetadata = PRMetadataStore.load()
         self.repoMetadata = RepoMetadataStore.load()
         self.storedStarredPRs = PRMetadataStore.loadStarredPRs()

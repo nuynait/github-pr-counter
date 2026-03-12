@@ -10,6 +10,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 notificationsSection
+                menuBarSection
                 repoOrderSection
                 archivedSection
             }
@@ -89,6 +90,29 @@ struct SettingsView: View {
                         .foregroundStyle(.blue)
 
                     Text("Show \"new\" indicator on PRs")
+                        .font(.subheadline)
+                }
+            }
+            .toggleStyle(.switch)
+            .padding(10)
+            .background(.fill.quinary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    // MARK: - Menu Bar Customization
+
+    private var menuBarSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Menu Bar Customization")
+                .font(.headline)
+
+            Toggle(isOn: $prVM.excludeDraftsFromMenuBar) {
+                HStack {
+                    Image(systemName: "pencil.line")
+                        .foregroundStyle(.secondary)
+
+                    Text("Exclude draft PRs from menu bar count")
                         .font(.subheadline)
                 }
             }

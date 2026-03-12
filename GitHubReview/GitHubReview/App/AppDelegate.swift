@@ -64,11 +64,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private func observeBadgeCounts() {
         prVM.$reviewRequests
-            .combineLatest(prVM.$myPRs)
+            .combineLatest(prVM.$myPRs, prVM.$excludeDraftsFromMenuBar)
             .receive(on: RunLoop.main)
-            .sink { [weak self] reviews, myPRs in
-                guard let button = self?.statusItem.button else { return }
-                self?.updateButton(button, reviewCount: reviews.count, myPRCount: myPRs.count)
+            .sink { [weak self] _, _, _ in
+                guard let self, let button = self.statusItem.button else { return }
+                self.updateButton(button, reviewCount: self.prVM.menuBarReviewCount, myPRCount: self.prVM.menuBarMyPRCount)
             }
             .store(in: &cancellables)
     }
