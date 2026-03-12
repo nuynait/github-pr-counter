@@ -28,8 +28,20 @@ actor GitHubService {
     }
 
     func fetchReviewRequests(username: String) async throws -> [PullRequest] {
-        let query = "type:pr+state:open+review-requested:\(username)"
-        return try await searchIssues(query: query)
+        async let pending = searchIssues(query: "type:pr+state:open+review-requested:\(username)")
+        async let reviewed = searchIssues(query: "type:pr+state:open+reviewed-by:\(username)+-author:\(username)")
+
+        let (pendingPRs, reviewedPRs) = try await (pending, reviewed)
+
+        // Merge and deduplicate by ID, preferring pending (more recent data)
+        var seen = Set<Int>()
+        var result: [PullRequest] = []
+        for pr in pendingPRs + reviewedPRs {
+            if seen.insert(pr.id).inserted {
+                result.append(pr)
+            }
+        }
+        return result
     }
 
     /// Check if a PR was merged, closed, or still open.
